@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Hotel Reservation</title>
+  <style>
+    :root{--accent:#2b7a78;--muted:#6c757d;--card:#ffffff;--bg:#f4f7f8}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;line-height:1.4;margin:0;background:var(--bg);color:#111}
+    header{background:linear-gradient(90deg,var(--accent),#1f6f6d);color:#fff;padding:24px 16px}
+    .container{max-width:1000px;margin:24px auto;padding:0 16px}
+    h1{margin:0;font-size:22px}
+    p.lead{color:rgba(255,255,255,0.9);margin-top:6px;font-size:13px}
+
+    /* Rooms grid */
+    .rooms{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:18px}
+    .card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 6px 18px rgba(16,24,40,0.06);}
+    .room-img{height:140px;border-radius:8px;background-size:cover;background-position:center}
+    .room-title{font-weight:600;margin:10px 0 6px}
+    .room-price{color:var(--accent);font-weight:700}
+    .room-desc{color:var(--muted);font-size:13px}
+    .actions{display:flex;gap:8px;margin-top:10px}
+    button{cursor:pointer;border:0;padding:8px 12px;border-radius:8px}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-ghost{background:transparent;border:1px solid #e6eef0;color:#111}
+
+    /* Booking modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;padding:20px}
+    .modal{background:#fff;border-radius:10px;max-width:560px;width:100%;padding:18px}
+    .modal h3{margin-top:0}
+    .form-row{display:flex;gap:10px}
+    .form-row > *{flex:1}
+    label{display:block;font-size:13px;margin-bottom:6px}
+    input,select{width:100%;padding:8px;border-radius:8px;border:1px solid #d7e1e2}
+    .small{font-size:13px;color:var(--muted)}
+
+    /* bookings list */
+    .bookings{margin-top:18px}
+    .booking-item{background:#fff;padding:10px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+    .empty{color:var(--muted);padding:18px;text-align:center}
+
+    footer{max-width:1000px;margin:32px auto 80px;padding:0 16px;color:var(--muted);font-size:13px}
+
+    @media (max-width:520px){header{padding:18px} .room-img{height:110px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <h1>Seaside Inn — Demo</h1>
+        <p class="lead">A tiny, fully client-side hotel reservation demo. No backend — bookings saved locally.</p>
+      </div>
+      <div>
+        <button id="viewBookingsBtn" class="btn-ghost">View My Bookings</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section>
+      <h2 style="margin:0 0 8px">Available Rooms</h2>
+      <div class="rooms" id="rooms"></div>
+    </section>
+
+    <section class="bookings">
+      <h3 style="margin-top:18px">My Reservations</h3>
+      <div id="bookingsList"></div>
+    </section>
+  </main>
+
+  <!-- Modal for booking form -->
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 id="modalTitle">Book Room</h3>
+      <p class="small" id="selectedRoomInfo">Selected room</p>
+
+      <form id="bookingForm">
+        <input type="hidden" id="roomId" />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+          <div>
+            <label for="name">Full name</label>
+            <input id="name" required />
+          </div>
+          <div>
+            <label for="email">Email</label>
+            <input id="email" type="email" required />
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-top:10px">
+          <div>
+            <label for="checkin">Check-in</label>
+            <input id="checkin" type="date" required />
+          </div>
+          <div>
+            <label for="checkout">Check-out</label>
+            <input id="checkout" type="date" required />
+          </div>
+        </div>
+
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+          <div style="flex:1">
+            <label for="guests">Guests</label>
+            <select id="guests">
+              <option>1</option>
+              <option>2</option>
+              <option>3</option>
+              <option>4</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label for="phone">Phone</label>
+            <input id="phone" placeholder="e.g. +91-9876543210" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button type="button" id="cancelBtn" class="btn-ghost">Cancel</button>
+          <button type="submit" class="btn-primary">Confirm Booking</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer>
+    This is a front-end-only demo. Bookings stored in your browser's localStorage and visible only to you.
+  </footer>
+
+  <script>
+    /* ----- Sample room data (would come from a server in a real app) ----- */
+    const rooms = [
+      {id: 'r1', title: 'Standard Room', price: 4500, desc: 'Cozy room with queen bed and sea view.', img: 'https://images.unsplash.com/photo-1501117716987-c8e2f1f8a9a9?auto=format&fit=crop&w=1200&q=60'},
+      {id: 'r2', title: 'Deluxe Room', price: 7200, desc: 'Larger room with balcony and complimentary breakfast.', img: 'https://images.unsplash.com/photo-1560347876-aeef00ee58a1?auto=format&fit=crop&w=1200&q=60'},
+      {id: 'r3', title: 'Family Suite', price: 12500, desc: 'Two-bedroom suite, best for families.', img: 'https://images.unsplash.com/photo-1542317854-1d2f3e5c6e2a?auto=format&fit=crop&w=1200&q=60'},
+    ];
+
+    /* ---- Utilities ---- */
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    /* ---- Render rooms ---- */
+    function renderRooms(){
+      const wrap = $('#rooms');
+      wrap.innerHTML = '';
+      rooms.forEach(r => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="room-img" style="background-image:url(${r.img})"></div>
+          <div class="room-title">${r.title}</div>
+          <div class="room-desc">${r.desc}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+            <div>
+              <div class="room-price">₹ ${r.price.toLocaleString()}</div>
+              <div class="small">per night</div>
+            </div>
+            <div class="actions">
+              <button class="btn-ghost" onclick="openRoom('${r.id}')">Details</button>
+              <button class="btn-primary" onclick="bookRoom('${r.id}')">Book</button>
+            </div>
+          </div>
+        `;
+        wrap.appendChild(card);
+      });
+    }
+
+    /* ---- Modal and form logic ---- */
+    const modal = $('#modalBackdrop');
+    const form = $('#bookingForm');
+
+    function openModal(){ modal.style.display = 'flex'; }
+    function closeModal(){ modal.style.display = 'none'; form.reset(); }
+
+    window.openRoom = function(roomId){
+      const r = rooms.find(x=>x.id===roomId);
+      alert(r.title + "\n\n" + r.desc + "\nPrice: ₹" + r.price);
+    }
+
+    window.bookRoom = function(roomId){
+      const r = rooms.find(x=>x.id===roomId);
+      $('#modalTitle').textContent = 'Book — ' + r.title;
+      $('#selectedRoomInfo').textContent = r.desc + ' · ₹ ' + r.price + ' / night';
+      $('#roomId').value = r.id;
+      openModal();
+    }
+
+    $('#cancelBtn').addEventListener('click', closeModal);
+
+    /* ---- Simple client-side validation and save ---- */
+    function showToast(msg){
+      // ultra-simple toast (alert) — replaceable with fancy UI
+      alert(msg);
+    }
+
+    function getBookings(){
+      try{
+        return JSON.parse(localStorage.getItem('demo_bookings') || '[]');
+      }catch(e){return []}
+    }
+    function saveBookings(arr){ localStorage.setItem('demo_bookings', JSON.stringify(arr)); }
+
+    function renderBookings(){
+      const list = $('#bookingsList');
+      const arr = getBookings();
+      if(!arr.length){ list.innerHTML = '<div class="empty">No reservations yet.</div>'; return; }
+      list.innerHTML = '';
+      arr.forEach(b => {
+        const item = document.createElement('div');
+        item.className = 'booking-item';
+        item.innerHTML = `
+          <div>
+            <div style="font-weight:600">${b.name} — ${b.roomTitle}</div>
+            <div class="small">${b.checkin} → ${b.checkout} · ${b.guests} guests</div>
+            <div class="small">${b.email || ''} ${b.phone ? '· ' + b.phone : ''}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+            <div class="small">₹ ${(b.nights * b.price).toLocaleString()}</div>
+            <div style="display:flex;gap:6px">
+              <button class="btn-ghost" onclick="cancelBooking('${b.id}')">Cancel</button>
+              <button class="btn-primary" onclick="downloadReceipt('${b.id}')">Receipt</button>
+            </div>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function calculateNights(checkin, checkout){
+      const a = new Date(checkin); const b = new Date(checkout);
+      const diff = (b - a) / (1000*60*60*24);
+      return Math.max(0, Math.round(diff));
+    }
+
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const data = {
+        id: 'b_' + Date.now().toString(36),
+        roomId: $('#roomId').value,
+        name: $('#name').value.trim(),
+        email: $('#email').value.trim(),
+        phone: $('#phone').value.trim(),
+        checkin: $('#checkin').value,
+        checkout: $('#checkout').value,
+        guests: $('#guests').value,
+      };
+
+      // validation
+      if(!data.name){ showToast('Please enter your name'); return; }
+      if(!data.checkin || !data.checkout){ showToast('Please select check-in and check-out dates'); return; }
+      if(new Date(data.checkout) <= new Date(data.checkin)){ showToast('Check-out must be after check-in'); return; }
+
+      const nights = calculateNights(data.checkin, data.checkout);
+      if(nights <= 0){ showToast('Invalid stay duration'); return; }
+
+      const room = rooms.find(r=>r.id===data.roomId);
+      data.roomTitle = room.title;
+      data.price = room.price;
+      data.nights = nights;
+      data.createdAt = new Date().toISOString();
+
+      // save
+      const arr = getBookings();
+      arr.push(data);
+      saveBookings(arr);
+
+      closeModal();
+      showToast('Booking confirmed — saved locally.');
+      renderBookings();
+    });
+
+    window.cancelBooking = function(id){
+      if(!confirm('Cancel this booking?')) return;
+      const arr = getBookings().filter(b=>b.id!==id);
+      saveBookings(arr);
+      renderBookings();
+    }
+
+    window.downloadReceipt = function(id){
+      const b = getBookings().find(x=>x.id===id);
+      if(!b){ showToast('Booking not found'); return; }
+      const text = `Seaside Inn — Receipt\n\nName: ${b.name}\nRoom: ${b.roomTitle}\nCheck-in: ${b.checkin}\nCheck-out: ${b.checkout}\nNights: ${b.nights}\nGuests: ${b.guests}\nTotal: ₹ ${b.nights * b.price}\n\nThank you!`;
+      const blob = new Blob([text], {type: 'text/plain'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `receipt_${b.id}.txt`; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // show/hide bookings panel via header button
+    $('#viewBookingsBtn').addEventListener('click', ()=>{
+      const el = document.querySelector('section.bookings');
+      el.scrollIntoView({behavior:'smooth'});
+    });
+
+    // init
+    renderRooms();
+    renderBookings();
+
+    // close modal on backdrop click
+    modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal(); });
+  </script>
+</body>
+</html>
